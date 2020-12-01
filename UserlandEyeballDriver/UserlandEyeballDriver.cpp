@@ -36,10 +36,10 @@ SOCKET get_client(SOCKET ListenSocket) {
 	return ClientSocket;
 }
 
-int read_pos(SOCKET sock, int* x, int* y) {
-	char buff[4];
+int read_pos(SOCKET sock, int old_x, int old_y, int* x, int* y, int* lc, int* rc) {
+	char buff[6];
 	// read data from the socket
-	if (!recv(sock, buff, 4, 0)) {
+	if (!recv(sock, buff, 6, 0)) {
 		printf("[DRIVER] Receive Failed: No data read\n");
 		return 1;
 	}
@@ -47,8 +47,36 @@ int read_pos(SOCKET sock, int* x, int* y) {
 	printf("Buffer -> %s\n", buff);
 
 	// byte 1 is x, byte 2 is y
-	*x = static_cast<short>(buff[0]);
-	*y = static_cast<short>(buff[2]);
+	*x = static_cast<short>(buff[0]) + old_x;
+	*y = static_cast<short>(buff[2]) + old_y;
+
+	int flags = static_cast<short>(buff[4]); 
+
+	*rc = flags & 1; 
+	*lc = flags & 1;
+
+	return 0;
+}
+
+int update_mouse(int* x, int* y) {
+	// check x bounds
+	if (*x < 0) *x = 0;
+	if (*x > GetSystemMetrics(SM_CXSCREEN)) *x = GetSystemMetrics(SM_CXSCREEN);
+
+	// check y bounds
+	if (*y < 0) *y = 0;
+	if (*y > GetSystemMetrics(SM_CYSCREEN)) *y = GetSystemMetrics(SM_CYSCREEN);
+
+	
+	// update, check for errors
+	if (!SetCursorPos(*x, *y)) {
+		printf("[DRIVER] Failed to update cursor position: %d\n", GetLastError());
+	}
+
+	return 0;
+}
+
+int handle_clicks(int lc, int rc) {
 
 	return 0;
 }
@@ -114,6 +142,8 @@ int main()
 		SOCKET sock = get_client(ListenSocket);
 		int x = 0;
 		int y = 0;
+		int lc = 0;
+		int rc = 0;
 
 		// make sure nothing broke during initialization
 		if (sock == 1) {
@@ -123,10 +153,19 @@ int main()
 		}
 
 		// keep reading positions from connected client
-		while (!read_pos(sock, &x, &y)) {
+		while (!read_pos(sock, x,y, &x, &y, &lc, &rc)) {
 			printf("[DRIVER] x: %d, y: %d\n", x, y);
+			printf("[DRIVER] LC: %d, RC: %d\n", lc, rc);
+
+			// update the cursor position
+			update_mouse(&x, &y);
+
+			// do clicks if need be
+			handle_clicks(lc, rc);
+
 		}
 
+		
 		printf("[DRIVER] Failed to read position data from client. Restarting...\n");
 	} while(1);
 
