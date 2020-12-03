@@ -8,6 +8,12 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
+
+/// define required global inputs
+int lc_state = 0;
+int rc_state = 0;
+
+
 SOCKET get_client(SOCKET ListenSocket) {
 	printf("[DRIVER] Listening...\n");
 	// listen for incomming connections
@@ -77,7 +83,44 @@ int update_mouse(int* x, int* y) {
 }
 
 int handle_clicks(int lc, int rc) {
-
+	int stateflags = 0;
+	int one_ready_quit = 0;
+	
+	// check if the left button is down
+	if(lc == 1 && lc_state == 0){
+		// going from unclicked --> clicked
+		stateflags |= MOUSEEVENTF_LEFTDOWN;
+		lc_state = 1;
+	} else if(lc_state == 1 && lc == 0) {
+		// going from clicked --> unclicked
+		stateflags |= MOUSEEVENTF_LEFTUP;
+		lc_state = 0;
+	} else {
+		// left doesnt need updating, communicate that for later
+		one_ready_quit = 1;
+	}
+	
+	// check right button down
+	if(rc == 1 && rc_state == 0){
+		// going from unclicked --> clicked
+		stateflags |= MOUSEEVENTF_RIGHTDOWN;
+		rc_state = 1;
+	} else if(rc_state == 1 && rc == 0){
+		// going from clicked --> unclicked
+		stateflags |= MOUSEEVENTF_RIGHTUP;
+		rc_state = 0;
+	} else if(one_ready_quit){
+		// left and right done, no need to pass event
+		return 0;
+	}
+	
+	/* Future TODOs:
+	 *    Add support for scrolling into this
+	 *    (check MOUSEEVENTF_WHEEL)
+	 */
+	
+	// pass the event
+	mouse_event(stateflags, 0, 0, 0, nullptr);
 	return 0;
 }
 
